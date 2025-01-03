@@ -1,35 +1,31 @@
 from models.classifier import EmergencyClassifier
+from utils.preprocessing import TextPreprocessor
 
-def test_classifier():
-    # Initialize classifier
+def test_system():
     classifier = EmergencyClassifier()
+    preprocessor = TextPreprocessor()
     
-    # Test messages
     test_messages = [
         "Help! There's a fire in my building!",
-        "This is a normal message, no emergency here.",
-        "URGENT: Medical assistance needed immediately!"
+        "¡Ayuda! ¡Necesito una ambulancia inmediatamente!",
+        "Just a normal message, no emergency.",
+        "URGENT! Medical assistance needed!"
     ]
     
-    print("\n=== Emergency Message Classification Demo ===\n")
+    print("\n=== Emergency Message Analysis Demo ===\n")
     
-    # Test single message
-    print("Testing single message classification:")
-    result = classifier.predict(test_messages[0], return_probabilities=True)
-    print(f"\nMessage: {result['text']}")
-    print(f"Classification: {result['severity']}")
-    print(f"Confidence Scores:")
-    for label, prob in result['probabilities'].items():
-        print(f"  - {label}: {prob:.2f}")
-    
-    # Test batch classification
-    print("\nTesting batch classification:")
-    results = classifier.predict(test_messages, return_probabilities=True)
-    
-    for result in results:
-        print(f"\nMessage: {result['text']}")
-        print(f"Classification: {result['severity']}")
-        print(f"Confidence: {result['confidence']:.2f}")
+    for message in test_messages:
+        # Analyze text
+        processed = preprocessor.prepare_batch([message])[0]
+        # Get classification
+        classification = classifier.predict(message, return_probabilities=True)
+        
+        print(f"\nOriginal Message: {message}")
+        print(f"Language: {processed['language']} (confidence: {processed['language_confidence']:.2f})")
+        print(f"Emergency Keywords: {processed['emergency_keyword_count']}")
+        print(f"Classification: {classification['severity']}")
+        print(f"Confidence: {classification['confidence']:.2f}")
+        print("-" * 50)
 
 if __name__ == "__main__":
-    test_classifier()
+    test_system()
