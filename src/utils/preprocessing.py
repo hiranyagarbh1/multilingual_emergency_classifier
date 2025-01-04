@@ -1,7 +1,8 @@
-from transformers import pipeline
+# src/utils/preprocessing.py
+
 import re
 from typing import List, Dict
-import pandas as pd
+from transformers import pipeline
 
 class TextPreprocessor:
     def __init__(self):
@@ -9,51 +10,69 @@ class TextPreprocessor:
             "text-classification",
             model="papluca/xlm-roberta-base-language-detection"
         )
-        self.emergency_keywords = self._create_emergency_keywords()
-    
+        
+        self.keywords = {
+            'non_emergency_keywords': [
+                'general', 'inquiry', 'information', 'schedule', 'routine',
+                'normal', 'regular', 'question', 'about', 'services'
+            ],
+            'urgent_keywords': [
+                'help', 'asap', 'urgent', 'immediate', 'emergency',
+                'ambulance', 'police', 'medical', 'assistance'
+            ],
+            'critical_keywords': [
+                'fire', 'accident', 'dying', 'death', 'critical',
+                'fatal', 'crash', 'burning', 'bleeding', 'stroke'
+            ]
+        }
+
     def clean_text(self, text: str) -> str:
         text = text.lower()
         text = re.sub(r'[^\w\s!?.,]', '', text)
-        text = re.sub(r'\s+', ' ', text).strip()
-        return text
-    
+        return re.sub(r'\s+', ' ', text).strip()
+
     def detect_language(self, text: str) -> Dict:
         result = self.language_classifier(text)[0]
         return {
             'language': result['label'],
             'confidence': result['score']
         }
-    
-    def _create_emergency_keywords(self) -> Dict[str, List[str]]:
-        return {
-            'en': ['emergency', 'help', 'urgent', 'critical', 'danger'],
-            'es': ['emergencia', 'ayuda', 'urgente', 'crítico', 'peligro'],
-            'fr': ['urgence', 'aide', 'urgent', 'critique', 'danger']
-        }
-    
-    def analyze_emergency_indicators(self, text: str) -> Dict:
-        text = text.lower()
-        lang_info = self.detect_language(text)
-        lang = lang_info['language']
+
+    def count_keywords(self, text: str) -> Dict[str, int]:
+        text_lower = text.lower()
+        words = set(text_lower.split())
         
-        keywords = self.emergency_keywords.get(lang, self.emergency_keywords['en'])
-        keyword_count = sum(1 for word in keywords if word in text)
+        counts = {}
+        for category, keywords in self.keywords.items():
+            count = sum(1 for keyword in keywords if keyword in words)
+            counts[category] = count
         
-        return {
-            'language': lang,
-            'language_confidence': lang_info['confidence'],
-            'emergency_keyword_count': keyword_count,
-            'exclamation_count': text.count('!'),
-            'question_count': text.count('?'),
-            'caps_ratio': sum(1 for c in text if c.isupper()) / len(text)
-        }
-    
+        return counts
+
     def prepare_batch(self, texts: List[str]) -> List[Dict]:
-        return [
-            {
-                'original_text': text,
-                'cleaned_text': self.clean_text(text),
-                **self.analyze_emergency_indicators(text)
+        results = []
+        for text in texts:
+            cleaned_text = self.clean_text(text)
+            lang_info = self.detect_language(text)
+            keyword_counts = self.count_keywords(cleaned_text)
+            
+            # Calculate additional metrics
+            metrics = {
+                'exclamation_count': text.count('!'),
+                'question_count': text.count('?'),
+                'caps_ratio': sum(1 for c in text if c.isupper()) / len(text) if text else 0,
+                'word_count': len(cleaned_text.split())
             }
-            for text in texts
-        ]
+            
+            result = {
+                'original_text': text,
+                'cleaned_text': cleaned_text,
+                'language': lang_info['language'],
+                'language_confidence': lang_info['confidence'],
+                **keyword_counts,
+                **metrics
+            }
+            
+            results.append(result)
+        
+        return results
